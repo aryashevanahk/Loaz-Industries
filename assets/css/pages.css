@@ -1,0 +1,533 @@
+/* About & Contact Pages - Earthy Elegant Theme */
+
+/* ============================================
+   CENTERED HERO SECTION
+   ============================================ */
+
+.hero-centered {
+    padding: 4rem 0 3rem;
+    background: linear-gradient(135deg, var(--cream) 0%, #FFF5E8 100%);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-centered::before {
+    content: '';
+    position: absolute;
+    top: -30%;
+    left: -10%;
+    width: 60%;
+    height: 140%;
+    background: radial-gradient(circle, rgba(192, 133, 82, 0.06) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.hero-centered::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    right: -10%;
+    width: 50%;
+    height: 120%;
+    background: radial-gradient(circle, rgba(140, 90, 60, 0.04) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.hero-centered-content {
+    position: relative;
+    z-index: 2;
+}
+
+.hero-badge {
+    display: inline-block;
+    padding: 0.3rem 1rem;
+    background: rgba(192, 133, 82, 0.12);
+    color: var(--gold-brown);
+    border-radius: 50px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 1px;
+    margin-bottom: 1rem;
+}
+
+.hero-centered-title {
+    font-size: 2.8rem;
+    font-weight: 600;
+    color: var(--dark-brown);
+    margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+}
+
+.hero-centered-subtitle {
+    font-size: 1rem;
+    color: var(--medium-brown);
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+/* ============================================
+   CARDS
+   ============================================ */
+
+.about-card {
+    background: white;
+    border: none;
+    border-radius: 24px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 1.5rem;
+    transition: var(--transition);
+}
+
+.about-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.about-card .card-body {
+    padding: 2rem;
+}
+
+/* Section Header Center */
+.section-header-center {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.section-tag {
+    display: inline-block;
+    padding: 0.3rem 1rem;
+    background: rgba(192, 133, 82, 0.1);
+    color: var(--gold-brown);
+    border-radius: 50px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 1px;
+    margin-bottom: 0.8rem;
+}
+
+.section-title-small {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--dark-brown);
+    margin: 0;
+}
+
+/* ============================================
+   VISION & MISSION CARDS
+   ============================================ */
+
+.vision-card,
+.mission-card {
+    padding: 1rem;
+    border-radius: 20px;
+    transition: var(--transition);
+}
+
+.vision-card:hover,
+.mission-card:hover {
+    transform: translateY(-3px);
+}
+
+.vision-icon,
+.mission-icon {
+    width: 60px;
+    height: 60px;
+    background: rgba(192, 133, 82, 0.1);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.2rem;
+}
+
+.vision-icon i,
+.mission-icon i {
+    font-size: 1.8rem;
+    color: var(--gold-brown);
+}
+
+.vision-card h3,
+.mission-card h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--dark-brown);
+    margin-bottom: 1rem;
+}
+
+.vision-card p {
+    color: var(--medium-brown);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.mission-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.mission-list li {
+    color: var(--medium-brown);
+    margin-bottom: 0.7rem;
+    padding-left: 1.2rem;
+    position: relative;
+    line-height: 1.5;
+    font-size: 0.9rem;
+}
+
+.mission-list li::before {
+    content: '▹';
+    position: absolute;
+    left: 0;
+    color: var(--gold-brown);
+}
+
+/* ============================================
+   SERVICE CARDS
+   ============================================ */
+
+.service-card-about {
+    background: var(--cream);
+    border-radius: 20px;
+    padding: 1.5rem;
+    transition: var(--transition);
+    height: 100%;
+}
+
+.service-card-about:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-md);
+}
+
+.service-icon {
+    width: 55px;
+    height: 55px;
+    background: rgba(192, 133, 82, 0.12);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.service-icon i {
+    font-size: 1.5rem;
+    color: var(--gold-brown);
+}
+
+.service-card-about h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--dark-brown);
+    margin-bottom: 0.8rem;
+}
+
+.service-card-about p {
+    color: var(--medium-brown);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+}
+
+.service-features {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.service-features span {
+    font-size: 0.7rem;
+    color: var(--gold-brown);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.service-features i {
+    font-size: 0.6rem;
+}
+
+/* ============================================
+   STATISTICS
+   ============================================ */
+
+.about-stats {
+    background: linear-gradient(135deg, var(--dark-brown) 0%, #5C3A36 100%);
+    border-radius: 24px;
+    padding: 2.5rem 2rem;
+    margin: 1rem 0;
+}
+
+.stat-item-about {
+    text-align: center;
+}
+
+.stat-number-about {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--gold-brown);
+    margin-bottom: 0.3rem;
+}
+
+.stat-label-about {
+    color: rgba(255, 248, 240, 0.8);
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+}
+
+/* ============================================
+   CONTACT ITEMS (Card Style)
+   ============================================ */
+
+.contact-items {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.8rem;
+    background: var(--cream);
+    border-radius: 16px;
+    transition: var(--transition);
+}
+
+.contact-item:hover {
+    transform: translateX(5px);
+    background: rgba(192, 133, 82, 0.05);
+}
+
+.contact-icon {
+    width: 45px;
+    height: 45px;
+    background: rgba(192, 133, 82, 0.12);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.contact-icon i {
+    font-size: 1.2rem;
+    color: var(--gold-brown);
+}
+
+.contact-detail {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.contact-label {
+    font-size: 0.7rem;
+    color: var(--medium-brown);
+    letter-spacing: 0.5px;
+}
+
+.contact-value {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--dark-brown);
+}
+
+/* ============================================
+   HOURS ITEMS (Card Style)
+   ============================================ */
+
+.hours-items {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.hours-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem;
+    background: var(--cream);
+    border-radius: 16px;
+    transition: var(--transition);
+}
+
+.hours-item:hover {
+    background: rgba(192, 133, 82, 0.05);
+}
+
+.hours-day {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.hours-day i {
+    color: var(--gold-brown);
+    font-size: 1rem;
+}
+
+.hours-day span {
+    font-weight: 500;
+    color: var(--dark-brown);
+}
+
+.hours-time {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hours-time i {
+    color: var(--gold-brown);
+    font-size: 0.9rem;
+}
+
+.hours-time span {
+    color: var(--medium-brown);
+}
+
+.hours-time.closed span {
+    color: #dc3545;
+}
+
+.hours-divider {
+    height: 1px;
+    background: rgba(192, 133, 82, 0.15);
+    margin: 0.5rem 0;
+}
+
+.hours-note {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0.8rem;
+    background: rgba(192, 133, 82, 0.08);
+    border-radius: 16px;
+}
+
+.hours-note i {
+    color: var(--gold-brown);
+    font-size: 0.9rem;
+}
+
+.hours-note span {
+    font-size: 0.75rem;
+    color: var(--medium-brown);
+}
+
+/* ============================================
+   CONTACT FORM
+   ============================================ */
+
+.contact-form .input-group-custom {
+    position: relative;
+}
+
+.contact-form .input-group-custom i {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gold-brown);
+    font-size: 0.9rem;
+    z-index: 2;
+}
+
+.contact-form .input-group-custom textarea ~ i {
+    top: 20px;
+    transform: none;
+}
+
+.contact-form .form-control {
+    padding-left: 42px;
+}
+
+.btn-submit {
+    background: var(--gold-brown);
+    color: white;
+    border: none;
+    padding: 0.9rem;
+    border-radius: 40px;
+    font-weight: 500;
+    transition: var(--transition);
+}
+
+.btn-submit:hover {
+    background: var(--medium-brown);
+    transform: translateY(-2px);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+    .hero-centered {
+        padding: 2.5rem 0;
+    }
+    
+    .hero-centered-title {
+        font-size: 1.8rem;
+    }
+    
+    .hero-centered-subtitle {
+        font-size: 0.85rem;
+    }
+    
+    .about-card .card-body {
+        padding: 1.5rem;
+    }
+    
+    .vision-card,
+    .mission-card {
+        text-align: center;
+    }
+    
+    .vision-icon,
+    .mission-icon {
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    .mission-list li {
+        text-align: left;
+    }
+    
+    .contact-item {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .hours-item {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
+    
+    .hours-note {
+        text-align: center;
+    }
+    
+    .service-features {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 576px) {
+    .stat-number-about {
+        font-size: 1.5rem;
+    }
+    
+    .stat-label-about {
+        font-size: 0.7rem;
+    }
+    
+    .section-title-small {
+        font-size: 1.2rem;
+    }
+}

@@ -1,0 +1,36 @@
+# Enable Rewrite Engine
+RewriteEngine On
+
+# Redirect root to homepage.php
+RewriteRule ^$ homepage.php [L]
+
+# Force HTTPS (uncomment jika pakai HTTPS)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# Remove index.php from URL (optional)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php?page=$1 [QSA,L]
+
+# Block access to sensitive directories
+RewriteRule ^config/ - [F,L]
+RewriteRule ^includes/ - [F,L]
+
+# Allow images only in uploads directory
+<FilesMatch "\.(jpg|jpeg|png|gif|webp|svg)$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>
+
+# Set default page
+DirectoryIndex homepage.php index.php
+
+# Custom error pages - Gunakan path absolut dari root DOCUMENT_ROOT
+ErrorDocument 404 /loaz_industries/404.php
+ErrorDocument 403 /loaz_industries/403.php
+
+# PHP settings
+php_value upload_max_filesize 10M
+php_value post_max_size 10M
+php_value max_execution_time 300
