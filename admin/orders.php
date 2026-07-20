@@ -43,6 +43,11 @@ if (isset($_POST['update_order'])) {
                 $stmt->execute([$id]);
             }
             
+            // If status is completed, log activity
+            if ($status == 'completed') {
+                error_log("Order #$id marked as completed by admin at " . date('Y-m-d H:i:s'));
+            }
+            
             $pdo->commit();
             header('Location: orders.php?msg=updated');
             exit();
@@ -137,6 +142,10 @@ $shipped_count = $stmt->fetch()['count'] ?? 0;
 
 $stmt = $pdo->query("SELECT COUNT(*) as count FROM orders WHERE status = 'completed'");
 $completed_count = $stmt->fetch()['count'] ?? 0;
+
+// Count orders waiting for confirmation (shipped)
+$stmt = $pdo->query("SELECT COUNT(*) as count FROM orders WHERE status = 'shipped'");
+$waiting_confirmation = $stmt->fetch()['count'] ?? 0;
 
 $stmt = $pdo->query("SELECT COUNT(*) as count FROM technician_applications WHERE status = 'pending'");
 $pending_applications = $stmt->fetch()['count'] ?? 0;
@@ -442,6 +451,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
             color: #17a2b8;
         }
         
+        .stat-badge-waiting {
+            background: rgba(255, 193, 7, 0.12);
+            color: #ffc107;
+        }
+        
         .stat-badge-completed {
             background: rgba(40, 167, 69, 0.12);
             color: #28a745;
@@ -590,6 +604,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
         .alert-danger-custom {
             background: rgba(220, 53, 69, 0.1);
             color: #dc3545;
+        }
+        
+        .alert-info-custom {
+            background: rgba(23, 162, 184, 0.1);
+            color: #17a2b8;
         }
         
         /* Modals */
@@ -775,6 +794,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <span class="stat-badge stat-badge-pending"><i class="fas fa-clock me-1"></i> Pending: <?php echo $pending_count; ?></span>
                     <span class="stat-badge stat-badge-paid"><i class="fas fa-check-circle me-1"></i> Paid: <?php echo $paid_count; ?></span>
                     <span class="stat-badge stat-badge-shipped"><i class="fas fa-truck me-1"></i> Shipped: <?php echo $shipped_count; ?></span>
+                    <span class="stat-badge stat-badge-waiting"><i class="fas fa-hourglass me-1"></i> Waiting Confirm: <?php echo $waiting_confirmation; ?></span>
                     <span class="stat-badge stat-badge-completed"><i class="fas fa-check-double me-1"></i> Completed: <?php echo $completed_count; ?></span>
                 </div>
             </div>
@@ -822,15 +842,25 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <tbody>
                         <?php if (count($orders) > 0): ?>
                             <?php foreach ($orders as $order): ?>
+                            <?php 
+                            // Status mapping for display
+                            $status_display = ucfirst($order['status']);
+                            if ($order['status'] == 'shipped') {
+                                $status_display = 'Menunggu Konfirmasi';
+                            }
+                            ?>
                             <tr>
                                 <td>#<?php echo str_pad($order['id'], 6, '0', STR_PAD_LEFT); ?></td>
                                 <td><?php echo htmlspecialchars($order['customer_name']); ?></td>
                                 <td><?php echo formatCurrency($order['total_price']); ?></td>
                                 <td>
                                     <span class="status-badge status-<?php echo $order['status']; ?>">
-                                        <?php echo ucfirst($order['status']); ?>
+                                        <?php echo $status_display; ?>
                                     </span>
-                                </td>
+                                    <?php if ($order['status'] == 'shipped'): ?>
+                                        <br><small class="text-muted text-warning">⏳ Menunggu konfirmasi user</small>
+                                    <?php endif; ?>
+                                </a>
                                 <td>
                                     <span class="status-badge status-<?php echo $order['transaction_status'] ?? 'pending'; ?>">
                                         <?php echo ucfirst($order['transaction_status'] ?? 'pending'); ?>
@@ -838,7 +868,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                                     <?php if ($order['payment_method']): ?>
                                         <br><small class="text-muted"><?php echo str_replace('_', ' ', $order['payment_method']); ?></small>
                                     <?php endif; ?>
-                                 </a>
+                                </a>
                                 <td><?php echo date('d/m/Y H:i', strtotime($order['created_at'])); ?></a>
                                 <td>
                                     <?php if (!empty($order['payment_proof']) && $order['payment_proof']): ?>
@@ -848,7 +878,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
-                                 </a>
+                                </a>
                                 <td>
                                     <button class="btn-action" onclick="viewOrder(<?php echo $order['id']; ?>)" data-bs-toggle="modal" data-bs-target="#viewOrderModal" title="View Details">
                                         <i class="fas fa-eye"></i>
@@ -913,6 +943,12 @@ $current_page = basename($_SERVER['PHP_SELF']);
                                 <option value="completed">Completed (Selesai)</option>
                             </select>
                         </div>
+                        <?php if (!empty($view_order) && $view_order['status'] == 'shipped'): ?>
+                        <div class="alert alert-warning-custom mb-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <small>Pesanan ini sedang menunggu konfirmasi dari user. Status akan otomatis berubah menjadi "Completed" setelah user mengkonfirmasi.</small>
+                        </div>
+                        <?php endif; ?>
                         <div class="alert alert-info-custom">
                             <i class="fas fa-info-circle me-2"></i>
                             <small>Jika status diubah menjadi "Paid" atau "Completed", status transaksi akan otomatis berubah menjadi "Paid".</small>
@@ -953,13 +989,15 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <script>
         function editOrder(id, status) {
             document.getElementById('edit_order_id').value = id;
-            document.getElementById('edit_order_status').value = status;
+            document.getElementById('edit_order_status').value = status || 'pending';
         }
         
         function viewOrder(id) {
             $('#viewOrderContent').html('<div class="text-center py-4"><div class="spinner-border text-gold" role="status"></div><p class="mt-2">Loading...</p></div>');
             $.get('get_order_details.php?id=' + id, function(data) {
                 $('#viewOrderContent').html(data);
+            }).fail(function() {
+                $('#viewOrderContent').html('<div class="text-center py-4 text-danger">Gagal memuat detail pesanan</div>');
             });
         }
     </script>

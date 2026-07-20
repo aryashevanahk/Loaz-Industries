@@ -139,11 +139,11 @@ header('X-XSS-Protection: 1; mode=block');
                         </li>
 
                         <li class="nav-item">
-                            <a class="nav-link <?php echo ($current_file == 'karir.php') ? 'active' : ''; ?>" href="/loaz_industries/career/karir.php">
-                                <i class="fas fa-briefcase"></i>
-                                <span>Karir</span>
-                            </a>
-                        </li>
+    <a class="nav-link <?php echo ($current_file == 'karir.php') ? 'active' : ''; ?>" href="/loaz_industries/career/karir.php">
+        <i class="fas fa-briefcase"></i>
+        <span>Karir</span>
+    </a>
+</li>
                     </ul>
 
                     <div class="navbar-actions">

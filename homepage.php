@@ -1,38 +1,96 @@
 <?php
+/**
+ * Homepage - Loaz Industries
+ * Menampilkan hero section, part terbaru, servis terbaru, dan statistik
+ */
+
 require_once 'config/database.php';
 require_once 'includes/functions.php';
 include 'includes/header.php';
 
-// Get featured parts (limit 8)
-$stmt = $pdo->query("SELECT * FROM parts WHERE stock > 0 ORDER BY id DESC LIMIT 8");
-$featured_parts = $stmt->fetchAll();
+// ============================================
+// DATA FETCHING - OPTIMASI
+// ============================================
 
-// Get recent services (limit 5) - FIX: Handle NULL status
-$stmt = $pdo->query("
-    SELECT s.*, u.name as customer_name 
-    FROM services s 
-    JOIN users u ON s.user_id = u.id 
-    WHERE COALESCE(s.status, 'pending') != 'done' 
-    ORDER BY s.created_at DESC 
-    LIMIT 5
-");
-$recent_services = $stmt->fetchAll();
+// [OPTIMASI] Gabungkan query yang mirip menjadi satu transaksi
+try {
+    // Gunakan multiple queries dalam satu statement untuk mengurangi round-trip
+    $pdo->beginTransaction();
+    
+    // 1. Featured parts (limit 8)
+    $stmt = $pdo->query("SELECT * FROM parts WHERE stock > 0 ORDER BY id DESC LIMIT 8");
+    $featured_parts = $stmt->fetchAll();
+    
+    // 2. Recent services with COALESCE for NULL status
+    $stmt = $pdo->query("
+        SELECT s.*, u.name as customer_name 
+        FROM services s 
+        JOIN users u ON s.user_id = u.id 
+        WHERE COALESCE(s.status, 'pending') != 'done' 
+        ORDER BY s.created_at DESC 
+        LIMIT 5
+    ");
+    $recent_services = $stmt->fetchAll();
+    
+    // 3. Statistics - gunakan satu query dengan UNION atau beberapa query terpisah
+    // Tetapi karena berbeda tabel, tetap terpisah
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM users WHERE role = 'user'");
+    $total_customers = (int)($stmt->fetch()['total'] ?? 0);
+    
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM services WHERE status = 'done'");
+    $total_services_done = (int)($stmt->fetch()['total'] ?? 0);
+    
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM parts WHERE stock > 0");
+    $total_parts = (int)($stmt->fetch()['total'] ?? 0);
+    
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM technicians WHERE status = 'available' AND is_active = 1");
+    $total_technicians = (int)($stmt->fetch()['total'] ?? 0);
+    
+    $pdo->commit();
+} catch (PDOException $e) {
+    // Rollback jika ada error
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    // Fallback values
+    $featured_parts = [];
+    $recent_services = [];
+    $total_customers = 0;
+    $total_services_done = 0;
+    $total_parts = 0;
+    $total_technicians = 0;
+    error_log("Homepage query error: " . $e->getMessage());
+}
 
-// Get statistics
-$stmt = $pdo->query("SELECT COUNT(*) as total FROM users WHERE role = 'user'");
-$total_customers = $stmt->fetch()['total'] ?? 0;
+// [OPTIMASI] Pre-calculate status mapping untuk reuse
+$status_badge_map = [
+    'pending' => 'status-pending',
+    'visit' => 'status-visit',
+    'accepted' => 'status-accepted',
+    'repairing' => 'status-repairing',
+    'done' => 'status-done'
+];
 
-$stmt = $pdo->query("SELECT COUNT(*) as total FROM services WHERE status = 'done'");
-$total_services_done = $stmt->fetch()['total'] ?? 0;
+$status_text_map = [
+    'pending' => 'Menunggu',
+    'visit' => 'Kunjungan',
+    'accepted' => 'Diterima',
+    'repairing' => 'Diperbaiki',
+    'done' => 'Selesai'
+];
 
-$stmt = $pdo->query("SELECT COUNT(*) as total FROM parts WHERE stock > 0");
-$total_parts = $stmt->fetch()['total'] ?? 0;
-
-$stmt = $pdo->query("SELECT COUNT(*) as total FROM technicians WHERE status = 'available' AND is_active = 1");
-$total_technicians = $stmt->fetch()['total'] ?? 0;
+$stats = [
+    'customers' => $total_customers,
+    'services_done' => $total_services_done,
+    'technicians' => $total_technicians
+];
 ?>
 
 <style>
+/* ============================================
+   CSS - OPTIMASI: Gabungkan selector yang sama
+   ============================================ */
+
 /* CSS Variables */
 :root {
     --cream: #FFF8F0;
@@ -44,7 +102,12 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Hero Section */
+/* Reset & Base */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body { font-family: 'Inter', sans-serif; background: var(--cream); }
+
+/* ===== HERO SECTION ===== */
 .hero {
     background: linear-gradient(135deg, var(--cream) 0%, #FFF5E8 100%);
     padding: 4rem 0 3rem;
@@ -52,16 +115,28 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     overflow: hidden;
 }
 
-.hero::before {
+.hero::before,
+.hero::after {
     content: '';
     position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.hero::before {
     top: -30%;
     right: -10%;
     width: 60%;
     height: 140%;
     background: radial-gradient(circle, rgba(192, 133, 82, 0.08) 0%, transparent 70%);
-    border-radius: 50%;
-    pointer-events: none;
+}
+
+.hero::after {
+    bottom: -30%;
+    left: -10%;
+    width: 50%;
+    height: 120%;
+    background: radial-gradient(circle, rgba(140, 90, 60, 0.04) 0%, transparent 70%);
 }
 
 .hero-grid {
@@ -71,9 +146,7 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     align-items: center;
 }
 
-.hero-badge {
-    margin-bottom: 1.5rem;
-}
+.hero-badge { margin-bottom: 1.5rem; }
 
 .badge-pill {
     display: inline-block;
@@ -113,45 +186,83 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     flex-wrap: wrap;
 }
 
-.btn-primary {
+/* ===== BUTTONS ===== */
+.btn-hero-primary,
+.btn-hero-outline,
+.btn-buy,
+.btn-cta {
+    transition: var(--transition);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Gunakan kelas yang konsisten dengan header */
+.btn-hero-primary {
     background: var(--gold-brown);
     color: white;
     border: none;
     padding: 0.8rem 1.8rem;
     border-radius: 40px;
     font-weight: 600;
-    transition: var(--transition);
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    text-decoration: none;
 }
 
-.btn-primary:hover {
+.btn-hero-primary:hover {
     background: var(--medium-brown);
     transform: translateY(-2px);
     color: white;
 }
 
-.btn-outline {
+.btn-hero-outline {
     background: transparent;
     border: 1.5px solid var(--gold-brown);
     color: var(--gold-brown);
     padding: 0.8rem 1.8rem;
     border-radius: 40px;
     font-weight: 600;
-    transition: var(--transition);
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    text-decoration: none;
 }
 
-.btn-outline:hover {
+.btn-hero-outline:hover {
     background: var(--gold-brown);
     color: white;
 }
 
+
+
+.btn-buy {
+    background: var(--gold-brown);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 30px;
+    font-weight: 500;
+}
+
+.btn-buy:hover {
+    background: var(--medium-brown);
+    transform: translateY(-2px);
+    color: white;
+}
+
+.btn-cta {
+    background: var(--gold-brown);
+    color: white;
+    border: none;
+    padding: 0.7rem 1.6rem;
+    border-radius: 40px;
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.btn-cta:hover {
+    background: var(--medium-brown);
+    transform: translateY(-2px);
+    color: white;
+    box-shadow: 0 4px 12px rgba(192, 133, 82, 0.25);
+}
+
+/* ===== HERO STATS ===== */
 .hero-stats {
     display: flex;
     gap: 2rem;
@@ -179,9 +290,8 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     background: rgba(192, 133, 82, 0.2);
 }
 
-.hero-visual {
-    position: relative;
-}
+/* ===== HERO VISUAL ===== */
+.hero-visual { position: relative; }
 
 .hero-image-wrapper {
     position: relative;
@@ -202,10 +312,7 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     animation: float 3s ease-in-out infinite;
 }
 
-.hero-image i {
-    font-size: 8rem;
-    color: white;
-}
+.hero-image i { font-size: 8rem; color: white; }
 
 .floating-card {
     position: absolute;
@@ -221,40 +328,34 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     color: var(--dark-brown);
 }
 
-.floating-card i {
-    color: var(--gold-brown);
-    font-size: 1rem;
-}
+.floating-card i { color: var(--gold-brown); font-size: 1rem; }
 
-.card-1 {
-    top: 10%;
-    left: 0;
-    animation: float 2s ease-in-out infinite;
-}
-
-.card-2 {
-    top: 50%;
-    right: 0;
-    animation: float 2.5s ease-in-out infinite;
-}
-
-.card-3 {
-    bottom: 10%;
-    left: 20%;
-    animation: float 1.8s ease-in-out infinite;
-}
+.card-1 { top: 10%; left: 0; animation: float 2s ease-in-out infinite; }
+.card-2 { top: 50%; right: 0; animation: float 2.5s ease-in-out infinite; }
+.card-3 { bottom: 10%; left: 20%; animation: float 1.8s ease-in-out infinite; }
 
 @keyframes float {
-    0%, 100% { transform: translateY(0px); }
+    0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
 }
 
-/* Parts Section */
-.section-parts {
+/* ===== SECTIONS ===== */
+.section-parts,
+.section-features {
     padding: 5rem 0;
     background: white;
 }
 
+.section-services {
+    padding: 5rem 0;
+    background: var(--cream);
+}
+
+.section-cta {
+    padding: 2rem 0;
+}
+
+/* ===== SECTION HEADER ===== */
 .section-header {
     text-align: center;
     margin-bottom: 3rem;
@@ -284,6 +385,12 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     margin: 0 auto;
 }
 
+.section-action {
+    text-align: center;
+    margin-top: 2rem;
+}
+
+/* ===== PARTS GRID ===== */
 .parts-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -324,10 +431,7 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     margin: 0 auto 1rem;
 }
 
-.part-image-placeholder i {
-    font-size: 3rem;
-    color: var(--gold-brown);
-}
+.part-image-placeholder i { font-size: 3rem; color: var(--gold-brown); }
 
 .part-name {
     font-size: 1rem;
@@ -349,37 +453,7 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     margin-bottom: 1rem;
 }
 
-.btn-buy {
-    background: var(--gold-brown);
-    color: white;
-    border: none;
-    padding: 0.6rem 1.2rem;
-    border-radius: 30px;
-    font-weight: 500;
-    transition: var(--transition);
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.btn-buy:hover {
-    background: var(--medium-brown);
-    transform: translateY(-2px);
-    color: white;
-}
-
-.section-action {
-    text-align: center;
-    margin-top: 2rem;
-}
-
-/* Services Section */
-.section-services {
-    padding: 5rem 0;
-    background: var(--cream);
-}
-
+/* ===== SERVICES TABLE ===== */
 .services-table-wrapper {
     background: white;
     border-radius: 20px;
@@ -409,6 +483,7 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     font-size: 0.85rem;
 }
 
+/* ===== STATUS BADGES ===== */
 .status-badge {
     display: inline-block;
     padding: 0.25rem 0.75rem;
@@ -418,17 +493,12 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
 }
 
 .status-pending { background: rgba(255, 193, 7, 0.15); color: #ffc107; }
-.status-accepted { background: rgba(23, 162, 184, 0.15); color: #17a2b8; }
+.status-accepted,
+.status-visit { background: rgba(23, 162, 184, 0.15); color: #17a2b8; }
 .status-repairing { background: rgba(192, 133, 82, 0.15); color: var(--gold-brown); }
 .status-done { background: rgba(40, 167, 69, 0.15); color: #28a745; }
-.status-visit { background: rgba(23, 162, 184, 0.15); color: #17a2b8; }
 
-/* Features Section */
-.section-features {
-    padding: 5rem 0;
-    background: white;
-}
-
+/* ===== FEATURES GRID ===== */
 .features-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -460,10 +530,7 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     margin: 0 auto 1rem;
 }
 
-.feature-icon i {
-    font-size: 2rem;
-    color: var(--gold-brown);
-}
+.feature-icon i { font-size: 2rem; color: var(--gold-brown); }
 
 .feature-card h3 {
     font-size: 1.1rem;
@@ -477,11 +544,7 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     color: var(--medium-brown);
 }
 
-/* CTA Section - Minimalis dan Proporsional */
-.section-cta {
-    padding: 2rem 0;
-}
-
+/* ===== CTA SECTION ===== */
 .cta-wrapper {
     display: flex;
     justify-content: space-between;
@@ -508,63 +571,22 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     margin: 0;
 }
 
-.btn-cta {
-    background: var(--gold-brown);
-    color: white;
-    border: none;
-    padding: 0.7rem 1.6rem;
-    border-radius: 40px;
-    font-weight: 500;
-    transition: var(--transition);
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    font-size: 0.85rem;
-}
-
-.btn-cta:hover {
-    background: var(--medium-brown);
-    transform: translateY(-2px);
-    color: white;
-    box-shadow: 0 4px 12px rgba(192, 133, 82, 0.25);
-}
-
-/* Responsive */
+/* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
     .hero-grid {
         grid-template-columns: 1fr;
         text-align: center;
     }
     
-    .hero-title {
-        font-size: 2rem;
-    }
+    .hero-title { font-size: 2rem; }
+    .hero-buttons,
+    .hero-stats { justify-content: center; }
+    .hero-image { width: 200px; height: 200px; }
+    .hero-image i { font-size: 5rem; }
     
-    .hero-buttons {
-        justify-content: center;
-    }
+    .section-title { font-size: 1.6rem; }
     
-    .hero-stats {
-        justify-content: center;
-    }
-    
-    .hero-image {
-        width: 200px;
-        height: 200px;
-    }
-    
-    .hero-image i {
-        font-size: 5rem;
-    }
-    
-    .section-title {
-        font-size: 1.6rem;
-    }
-    
-    .parts-grid {
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    }
+    .parts-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
     
     .cta-wrapper {
         flex-direction: column;
@@ -572,17 +594,14 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
         padding: 1.2rem;
     }
     
-    .cta-content h3 {
-        font-size: 1.1rem;
-    }
-    
-    .floating-card {
-        display: none;
-    }
+    .cta-content h3 { font-size: 1.1rem; }
+    .floating-card { display: none; }
 }
 </style>
 
-<!-- Hero Section -->
+<!-- ============================================
+     HERO SECTION
+     ============================================ -->
 <section class="hero">
     <div class="container">
         <div class="hero-grid">
@@ -598,30 +617,25 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
                     Layanan servis profesional dengan teknisi berpengalaman dan part elektronik original dengan garansi resmi. Cepat, tepat, dan terpercaya.
                 </p>
                 <div class="hero-buttons">
-                    <a href="user/request_service.php" class="btn-primary">
+                    <a href="user/request_service.php" class="btn-hero-primary">
                         <i class="fas fa-tools"></i>
                         <span>Request Servis</span>
                     </a>
-                    <a href="user/order_part.php" class="btn-outline">
+                    <a href="user/order_part.php" class="btn-hero-outline">
                         <i class="fas fa-shopping-cart"></i>
                         <span>Beli Part</span>
                     </a>
                 </div>
                 <div class="hero-stats">
-                    <div class="stat-item">
-                        <span class="stat-number" data-target="<?php echo $total_customers; ?>">0</span>
-                        <span class="stat-label">Pelanggan Aktif</span>
-                    </div>
-                    <div class="stat-divider"></div>
-                    <div class="stat-item">
-                        <span class="stat-number" data-target="<?php echo $total_services_done; ?>">0</span>
-                        <span class="stat-label">Servis Selesai</span>
-                    </div>
-                    <div class="stat-divider"></div>
-                    <div class="stat-item">
-                        <span class="stat-number" data-target="<?php echo $total_technicians; ?>">0</span>
-                        <span class="stat-label">Teknisi Profesional</span>
-                    </div>
+                    <?php foreach ($stats as $key => $value): ?>
+                        <?php if ($key !== 'customers') echo '<div class="stat-divider"></div>'; ?>
+                        <div class="stat-item">
+                            <span class="stat-number" data-target="<?php echo $value; ?>">0</span>
+                            <span class="stat-label">
+                                <?php echo $key === 'customers' ? 'Pelanggan Aktif' : ($key === 'services_done' ? 'Servis Selesai' : 'Teknisi Profesional'); ?>
+                            </span>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
             <div class="hero-visual">
@@ -647,7 +661,9 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     </div>
 </section>
 
-<!-- Featured Parts Section -->
+<!-- ============================================
+     FEATURED PARTS SECTION
+     ============================================ -->
 <section class="section-parts">
     <div class="container">
         <div class="section-header">
@@ -656,13 +672,13 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
             <p class="section-desc">Komponen elektronik original dengan harga terbaik dan garansi resmi</p>
         </div>
         <div class="parts-grid">
-            <?php if (count($featured_parts) > 0): ?>
+            <?php if (!empty($featured_parts)): ?>
                 <?php foreach ($featured_parts as $part): ?>
                 <div class="part-card">
                     <?php if (!empty($part['image']) && file_exists('uploads/parts/' . $part['image'])): ?>
                         <img src="uploads/parts/<?php echo htmlspecialchars($part['image']); ?>" 
                              alt="<?php echo htmlspecialchars($part['name']); ?>" 
-                             class="part-image">
+                             class="part-image" loading="lazy">
                     <?php else: ?>
                         <div class="part-image-placeholder">
                             <i class="fas fa-microchip"></i>
@@ -687,7 +703,7 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
             <?php endif; ?>
         </div>
         <div class="section-action">
-            <a href="user/order_part.php" class="btn-outline">
+            <a href="user/order_part.php" class="btn-hero-outline">
                 <span>Lihat Semua Part</span>
                 <i class="fas fa-arrow-right"></i>
             </a>
@@ -695,7 +711,9 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     </div>
 </section>
 
-<!-- Services Section -->
+<!-- ============================================
+     SERVICES SECTION
+     ============================================ -->
 <section class="section-services">
     <div class="container">
         <div class="section-header">
@@ -715,41 +733,30 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (count($recent_services) > 0): ?>
+                    <?php if (!empty($recent_services)): ?>
                         <?php foreach ($recent_services as $service): ?>
+                        <?php 
+                        $status_value = $service['status'] ?? 'pending';
+                        $status_class = $status_badge_map[$status_value] ?? 'status-pending';
+                        $status_display = $status_text_map[$status_value] ?? ucfirst($status_value);
+                        ?>
                         <tr>
                             <td data-label="Pelanggan"><?php echo htmlspecialchars($service['customer_name'] ?? '-'); ?></a>
-                            <td data-label="Device"><strong><?php echo htmlspecialchars($service['device'] ?? '-'); ?></strong></a>
-                            <td data-label="Problem"><?php echo htmlspecialchars(substr($service['problem'] ?? '', 0, 40)) . ((strlen($service['problem'] ?? '') > 40) ? '...' : ''); ?></a>
-                            <td data-label="Status">
-                                <?php
-                                // [FIX] Handle NULL status dengan default 'pending'
-                                $status_value = $service['status'] ?? 'pending';
-                                $statusClass = '';
-                                switch($status_value) {
-                                    case 'pending': $statusClass = 'status-pending'; break;
-                                    case 'visit': $statusClass = 'status-visit'; break;
-                                    case 'accepted': $statusClass = 'status-accepted'; break;
-                                    case 'repairing': $statusClass = 'status-repairing'; break;
-                                    case 'done': $statusClass = 'status-done'; break;
-                                    default: $statusClass = 'status-pending';
-                                }
-                                
-                                // Status text mapping
-                                $status_text = [
-                                    'pending' => 'Menunggu',
-                                    'visit' => 'Kunjungan',
-                                    'accepted' => 'Diterima',
-                                    'repairing' => 'Diperbaiki',
-                                    'done' => 'Selesai'
-                                ];
-                                $display_text = $status_text[$status_value] ?? ucfirst($status_value);
+                            <td data-label="Device"><strong><?php echo htmlspecialchars($service['device'] ?? '-'); ?></strong></td>
+                            <td data-label="Problem">
+                                <?php 
+                                $problem = $service['problem'] ?? '';
+                                echo htmlspecialchars(substr($problem, 0, 40)) . (strlen($problem) > 40 ? '...' : ''); 
                                 ?>
-                                <span class="status-badge <?php echo $statusClass; ?>">
-                                    <?php echo $display_text; ?>
+                            </a>
+                            <td data-label="Status">
+                                <span class="status-badge <?php echo $status_class; ?>">
+                                    <?php echo $status_display; ?>
                                 </span>
                             </a>
-                            <td data-label="Tanggal"><?php echo date('d/m/Y', strtotime($service['created_at'] ?? 'now')); ?></a>
+                            <td data-label="Tanggal">
+                                <?php echo date('d/m/Y', strtotime($service['created_at'] ?? 'now')); ?>
+                            </a>
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
@@ -761,7 +768,7 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
             </table>
         </div>
         <div class="section-action">
-            <a href="user/request_service.php" class="btn-primary">
+            <a href="user/request_service.php" class="btn-hero-primary">
                 <i class="fas fa-plus-circle"></i>
                 <span>Request Servis Baru</span>
             </a>
@@ -769,7 +776,9 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     </div>
 </section>
 
-<!-- Why Choose Us Section -->
+<!-- ============================================
+     FEATURES SECTION
+     ============================================ -->
 <section class="section-features">
     <div class="container">
         <div class="section-header">
@@ -779,30 +788,22 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
         </div>
         <div class="features-grid">
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-user-tie"></i>
-                </div>
+                <div class="feature-icon"><i class="fas fa-user-tie"></i></div>
                 <h3>Teknisi Profesional</h3>
                 <p>Berpengalaman dan bersertifikat di bidangnya</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-microchip"></i>
-                </div>
+                <div class="feature-icon"><i class="fas fa-microchip"></i></div>
                 <h3>Part Original</h3>
                 <p>Garansi resmi 1 tahun untuk semua part</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-tachometer-alt"></i>
-                </div>
+                <div class="feature-icon"><i class="fas fa-tachometer-alt"></i></div>
                 <h3>Servis Cepat</h3>
                 <p>Pengerjaan tepat waktu dengan kualitas terbaik</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-shield-alt"></i>
-                </div>
+                <div class="feature-icon"><i class="fas fa-shield-alt"></i></div>
                 <h3>Garansi Servis</h3>
                 <p>Garansi 3 bulan untuk setiap layanan servis</p>
             </div>
@@ -810,7 +811,9 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
     </div>
 </section>
 
-<!-- CTA Section - Minimalis dan Proporsional -->
+<!-- ============================================
+     CTA SECTION
+     ============================================ -->
 <section class="section-cta">
     <div class="container">
         <div class="cta-wrapper">
@@ -830,15 +833,19 @@ $total_technicians = $stmt->fetch()['total'] ?? 0;
 </section>
 
 <script>
-// Counter animation
-document.addEventListener('DOMContentLoaded', function() {
+/**
+ * Counter Animation - Optimasi dengan Intersection Observer
+ */
+(function() {
+    'use strict';
+
     const animateNumber = (element, target) => {
         if (target === 0) {
             element.textContent = '0';
             return;
         }
         let current = 0;
-        const increment = target / 50;
+        const increment = Math.ceil(target / 50);
         const updateCounter = setInterval(() => {
             current += increment;
             if (current >= target) {
@@ -861,13 +868,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 observer.unobserve(entry.target);
             }
         });
+    }, {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
     });
 
     const heroStats = document.querySelector('.hero-stats');
     if (heroStats) {
         observer.observe(heroStats);
     }
-});
+})();
 </script>
 
 <?php include 'includes/footer.php'; ?>

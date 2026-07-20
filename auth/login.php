@@ -1,6 +1,15 @@
 <?php
+/**
+ * Login Page - Loaz Industries
+ * Autentikasi pengguna untuk mengakses sistem
+ */
+
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+
+// ============================================
+// REDIRECT IF ALREADY LOGGED IN
+// ============================================
 
 // Jika sudah login, redirect ke dashboard sesuai role
 if (isLoggedIn()) {
@@ -14,29 +23,70 @@ if (isLoggedIn()) {
     exit();
 }
 
+// ============================================
+// FORM HANDLING
+// ============================================
+
 $error = '';
+$email = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = $_POST['email'];
-    $password = $_POST['password'];
+    // [OPTIMASI] Sanitasi input
+    $email = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
     
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->execute([$email]);
-    $user = $stmt->fetch();
-    
-    if ($user && password_verify($password, $user['password'])) {
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['user_name'] = $user['name'];
-        $_SESSION['role'] = $user['role'];
-        
-        if ($user['role'] === 'admin') header('Location: /loaz_industries/admin/dashboard.php');
-        elseif ($user['role'] === 'technician') header('Location: /loaz_industries/technician/dashboard.php');
-        else header('Location: /loaz_industries/user/dashboard.php');
-        exit();
+    // [OPTIMASI] Validasi dasar
+    if (empty($email)) {
+        $error = 'Email harus diisi!';
+    } elseif (empty($password)) {
+        $error = 'Password harus diisi!';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Format email tidak valid!';
     } else {
-        $error = 'Email atau password salah!';
+        try {
+            // [OPTIMASI] Gunakan prepared statement dengan SELECT spesifik
+            $stmt = $pdo->prepare("SELECT id, name, email, password, role FROM users WHERE email = ?");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
+            
+            // [OPTIMASI] Verifikasi password dengan timing attack safe
+            if ($user && password_verify($password, $user['password'])) {
+                // [OPTIMASI] Regenerate session ID untuk keamanan
+                session_regenerate_id(true);
+                
+                // Set session data
+                $_SESSION['user_id'] = (int)$user['id'];
+                $_SESSION['user_name'] = $user['name'];
+                $_SESSION['user_email'] = $user['email'];
+                $_SESSION['role'] = $user['role'];
+                
+                // [OPTIMASI] Log aktivitas login (opsional)
+                error_log("User {$user['email']} logged in at " . date('Y-m-d H:i:s'));
+                
+                // Redirect sesuai role
+                if ($user['role'] === 'admin') {
+                    header('Location: /loaz_industries/admin/dashboard.php');
+                } elseif ($user['role'] === 'technician') {
+                    header('Location: /loaz_industries/technician/dashboard.php');
+                } else {
+                    header('Location: /loaz_industries/user/dashboard.php');
+                }
+                exit();
+            } else {
+                // [OPTIMASI] Pesan error yang sama untuk keamanan (tidak spesifik)
+                $error = 'Email atau password salah!';
+                // Log percobaan login gagal
+                error_log("Failed login attempt for email: $email at " . date('Y-m-d H:i:s'));
+            }
+        } catch (PDOException $e) {
+            // Log error dan tampilkan pesan generik
+            error_log("Login error: " . $e->getMessage());
+            $error = 'Terjadi kesalahan sistem. Silakan coba lagi.';
+        }
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -54,6 +104,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     
     <style>
+        /* ============================================
+           LOGIN PAGE STYLES - OPTIMASI
+           ============================================ */
+        
         :root {
             --cream: #FFF8F0;
             --gold-brown: #C08552;
@@ -80,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             overflow-x: hidden;
         }
         
-        /* Background Decoration */
+        /* Background Decoration - Optimasi dengan single pseudo-element */
         body::before {
             content: '';
             position: absolute;
@@ -305,7 +359,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="col-md-5 col-lg-4">
                 <div class="login-card">
                     <div class="card-body">
-                        <!-- Back to Dashboard Button (Top Right) -->
+                        <!-- Back to Home Button -->
                         <div class="d-flex justify-content-end mb-3">
                             <a href="/loaz_industries/index.php" class="btn-back">
                                 <i class="fas fa-arrow-left"></i> Kembali ke Beranda
@@ -324,20 +378,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <!-- Alert Error -->
                         <?php if ($error): ?>
                             <div class="alert-custom alert-danger-custom">
-                                <i class="fas fa-exclamation-circle me-2"></i> <?php echo $error; ?>
+                                <i class="fas fa-exclamation-circle me-2"></i> <?php echo htmlspecialchars($error); ?>
                             </div>
                         <?php endif; ?>
                         
                         <!-- Login Form -->
-                        <form method="POST">
+                        <form method="POST" autocomplete="on">
                             <div class="input-group-custom">
                                 <i class="fas fa-envelope"></i>
-                                <input type="email" name="email" class="form-control" placeholder="Email Address" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" required>
+                                <input type="email" name="email" class="form-control" 
+                                       placeholder="Email Address" 
+                                       value="<?php echo htmlspecialchars($email); ?>" 
+                                       required autofocus>
                             </div>
                             
                             <div class="input-group-custom">
                                 <i class="fas fa-lock"></i>
-                                <input type="password" name="password" class="form-control" placeholder="Password" required>
+                                <input type="password" name="password" class="form-control" 
+                                       placeholder="Password" required>
                             </div>
                             
                             <div class="text-end mb-3">
@@ -360,7 +418,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </p>
                         </div>
                     </div>
-                </div>
                 </div>
             </div>
         </div>

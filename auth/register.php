@@ -1,8 +1,16 @@
 <?php
+/**
+ * Register Page - Loaz Industries
+ * Pendaftaran akun baru untuk user
+ */
+
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
-// Jika sudah login, redirect ke dashboard sesuai role
+// ============================================
+// REDIRECT IF ALREADY LOGGED IN
+// ============================================
+
 if (isLoggedIn()) {
     if (isAdmin()) {
         header('Location: /loaz_industries/admin/dashboard.php');
@@ -14,10 +22,10 @@ if (isLoggedIn()) {
     exit();
 }
 
-$error = '';
-$success = '';
+// ============================================
+// CONFIGURATION
+// ============================================
 
-// Daftar pertanyaan keamanan
 $security_questions = [
     'Apa nama hewan peliharaan pertama Anda?',
     'Siapa nama ibu kandung Anda?',
@@ -29,47 +37,108 @@ $security_questions = [
     'Apa merek mobil impian Anda?'
 ];
 
+$error = '';
+$success = '';
+$form_data = [
+    'name' => '',
+    'email' => '',
+    'security_question' => '',
+    'security_answer' => ''
+];
+
+// ============================================
+// FORM HANDLING - OPTIMASI
+// ============================================
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = trim($_POST['name']);
-    $email = trim($_POST['email']);
-    $password = $_POST['password'];
-    $confirm_password = $_POST['confirm_password'];
-    $security_question = $_POST['security_question'];
-    $security_answer = trim(strtolower($_POST['security_answer']));
+    // [OPTIMASI] Sanitasi data
+    $form_data['name'] = trim($_POST['name'] ?? '');
+    $form_data['email'] = trim($_POST['email'] ?? '');
+    $form_data['security_question'] = $_POST['security_question'] ?? '';
+    $form_data['security_answer'] = trim(strtolower($_POST['security_answer'] ?? ''));
+    $password = $_POST['password'] ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
     
-    // Validation
-    if (empty($name) || empty($email) || empty($password)) {
-        $error = 'Semua field harus diisi!';
-    } elseif ($password !== $confirm_password) {
-        $error = 'Password dan konfirmasi password tidak sama!';
+    // [OPTIMASI] Validasi dengan array errors
+    $validation_errors = [];
+    
+    if (empty($form_data['name'])) {
+        $validation_errors[] = 'Nama lengkap harus diisi!';
+    } elseif (strlen($form_data['name']) < 2) {
+        $validation_errors[] = 'Nama lengkap minimal 2 karakter!';
+    }
+    
+    if (empty($form_data['email'])) {
+        $validation_errors[] = 'Email harus diisi!';
+    } elseif (!filter_var($form_data['email'], FILTER_VALIDATE_EMAIL)) {
+        $validation_errors[] = 'Email tidak valid!';
+    }
+    
+    if (empty($password)) {
+        $validation_errors[] = 'Password harus diisi!';
     } elseif (strlen($password) < 6) {
-        $error = 'Password minimal 6 karakter!';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = 'Email tidak valid!';
-    } elseif (empty($security_answer)) {
-        $error = 'Jawaban pertanyaan keamanan harus diisi!';
+        $validation_errors[] = 'Password minimal 6 karakter!';
+    }
+    
+    if ($password !== $confirm_password) {
+        $validation_errors[] = 'Password dan konfirmasi password tidak sama!';
+    }
+    
+    if (empty($form_data['security_question'])) {
+        $validation_errors[] = 'Pertanyaan keamanan harus dipilih!';
+    }
+    
+    if (empty($form_data['security_answer'])) {
+        $validation_errors[] = 'Jawaban keamanan harus diisi!';
+    } elseif (strlen($form_data['security_answer']) < 2) {
+        $validation_errors[] = 'Jawaban keamanan minimal 2 karakter!';
+    }
+    
+    // Jika ada error, gabungkan
+    if (!empty($validation_errors)) {
+        $error = implode(' ', $validation_errors);
     } else {
-        // Check if email already exists
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
-        $stmt->execute([$email]);
-        if ($stmt->fetch()) {
-            $error = 'Email sudah terdaftar!';
-        } else {
-            // Insert new user
-            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $hashed_answer = password_hash($security_answer, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, security_question, security_answer) VALUES (?, ?, ?, 'user', ?, ?)");
-            if ($stmt->execute([$name, $email, $hashed_password, $security_question, $hashed_answer])) {
-                $success = 'Registrasi berhasil! Silakan login.';
-                // Redirect after 2 seconds
-                echo '<meta http-equiv="refresh" content="2;url=login.php">';
+        try {
+            // [OPTIMASI] Check if email already exists
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+            $stmt->execute([$form_data['email']]);
+            
+            if ($stmt->fetch()) {
+                $error = 'Email sudah terdaftar! Silakan gunakan email lain atau login.';
             } else {
-                $error = 'Registrasi gagal. Silakan coba lagi.';
+                // [OPTIMASI] Insert new user
+                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                $hashed_answer = password_hash($form_data['security_answer'], PASSWORD_DEFAULT);
+                
+                $stmt = $pdo->prepare("
+                    INSERT INTO users (name, email, password, role, security_question, security_answer) 
+                    VALUES (?, ?, ?, 'user', ?, ?)
+                ");
+                
+                if ($stmt->execute([$form_data['name'], $form_data['email'], $hashed_password, 
+                                    $form_data['security_question'], $hashed_answer])) {
+                    $success = 'Registrasi berhasil! Silakan login untuk melanjutkan.';
+                    
+                    // [OPTIMASI] Log registrasi berhasil
+                    error_log("New user registered: {$form_data['email']} at " . date('Y-m-d H:i:s'));
+                    
+                    // Reset form data setelah sukses
+                    $form_data = ['name' => '', 'email' => '', 'security_question' => '', 'security_answer' => ''];
+                    
+                    // Redirect after 2 seconds
+                    echo '<meta http-equiv="refresh" content="2;url=login.php">';
+                } else {
+                    $error = 'Registrasi gagal. Silakan coba lagi.';
+                }
             }
+        } catch (PDOException $e) {
+            error_log("Registration error: " . $e->getMessage());
+            $error = 'Terjadi kesalahan sistem. Silakan coba lagi.';
         }
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -87,6 +156,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     
     <style>
+        /* ============================================
+           REGISTER PAGE STYLES - OPTIMASI
+           ============================================ */
+        
         :root {
             --cream: #FFF8F0;
             --gold-brown: #C08552;
@@ -113,6 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             overflow-x: hidden;
         }
         
+        /* Background Decoration - Optimasi */
         body::before {
             content: '';
             position: absolute;
@@ -137,6 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             pointer-events: none;
         }
         
+        /* Card Style */
         .register-card {
             background: white;
             border: none;
@@ -151,6 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             padding: 2.5rem;
         }
         
+        /* Brand Icon */
         .brand-icon-large {
             width: 70px;
             height: 70px;
@@ -167,6 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: white;
         }
         
+        /* Form Styles */
         .input-group-custom {
             position: relative;
             margin-bottom: 1.25rem;
@@ -196,6 +273,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         .input-group-custom select {
             cursor: pointer;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23C08552' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
         }
         
         .input-group-custom .form-control:focus,
@@ -205,6 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             outline: none;
         }
         
+        /* Button */
         .btn-register {
             background: var(--gold-brown);
             color: white;
@@ -224,6 +305,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow: var(--shadow-md);
         }
         
+        /* Back Button */
         .btn-back {
             background: transparent;
             color: var(--medium-brown);
@@ -246,6 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transform: translateY(-2px);
         }
         
+        /* Alerts */
         .alert-custom {
             border: none;
             border-radius: 16px;
@@ -264,6 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: #dc3545;
         }
         
+        /* Links */
         .login-link {
             color: var(--gold-brown);
             text-decoration: none;
@@ -276,6 +360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text-decoration: underline;
         }
         
+        /* Divider */
         .divider {
             display: flex;
             align-items: center;
@@ -296,6 +381,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 0.75rem;
         }
         
+        /* Responsive */
         @media (max-width: 576px) {
             .register-card .card-body {
                 padding: 1.8rem;
@@ -318,8 +404,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="col-md-6 col-lg-5">
                 <div class="register-card">
                     <div class="card-body">
-
                         
+                        <!-- Back Button -->
+                        <div class="d-flex justify-content-end mb-3">
+                            <a href="/loaz_industries/index.php" class="btn-back">
+                                <i class="fas fa-arrow-left"></i> Kembali ke Beranda
+                            </a>
+                        </div>
+                        
+                        <!-- Brand -->
                         <div class="text-center mb-4">
                             <div class="brand-icon-large">
                                 <i class="fas fa-microchip"></i>
@@ -328,37 +421,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <p style="color: var(--medium-brown); font-size: 0.85rem;">Bergabung dengan Loaz Industries</p>
                         </div>
                         
+                        <!-- Alert Messages -->
                         <?php if ($error): ?>
                             <div class="alert-custom alert-danger-custom">
-                                <i class="fas fa-exclamation-circle me-2"></i> <?php echo $error; ?>
+                                <i class="fas fa-exclamation-circle me-2"></i> <?php echo htmlspecialchars($error); ?>
                             </div>
                         <?php endif; ?>
                         
                         <?php if ($success): ?>
                             <div class="alert-custom alert-success-custom">
-                                <i class="fas fa-check-circle me-2"></i> <?php echo $success; ?>
+                                <i class="fas fa-check-circle me-2"></i> <?php echo htmlspecialchars($success); ?>
                             </div>
                         <?php endif; ?>
                         
-                        <form method="POST">
+                        <!-- Registration Form -->
+                        <form method="POST" autocomplete="on">
                             <div class="input-group-custom">
                                 <i class="fas fa-user"></i>
-                                <input type="text" name="name" class="form-control" placeholder="Nama Lengkap" value="<?php echo isset($_POST['name']) ? htmlspecialchars($_POST['name']) : ''; ?>" required>
+                                <input type="text" name="name" class="form-control" 
+                                       placeholder="Nama Lengkap" 
+                                       value="<?php echo htmlspecialchars($form_data['name']); ?>" 
+                                       required autofocus>
                             </div>
                             
                             <div class="input-group-custom">
                                 <i class="fas fa-envelope"></i>
-                                <input type="email" name="email" class="form-control" placeholder="Email Address" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" required>
+                                <input type="email" name="email" class="form-control" 
+                                       placeholder="Email Address" 
+                                       value="<?php echo htmlspecialchars($form_data['email']); ?>" 
+                                       required>
                             </div>
                             
                             <div class="input-group-custom">
                                 <i class="fas fa-lock"></i>
-                                <input type="password" name="password" class="form-control" placeholder="Password (min. 6 karakter)" required>
+                                <input type="password" name="password" class="form-control" 
+                                       placeholder="Password (min. 6 karakter)" 
+                                       required minlength="6">
                             </div>
                             
                             <div class="input-group-custom">
                                 <i class="fas fa-lock"></i>
-                                <input type="password" name="confirm_password" class="form-control" placeholder="Konfirmasi Password" required>
+                                <input type="password" name="confirm_password" class="form-control" 
+                                       placeholder="Konfirmasi Password" 
+                                       required>
                             </div>
                             
                             <!-- Security Question -->
@@ -367,7 +472,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <select name="security_question" class="form-control" required>
                                     <option value="">Pilih pertanyaan keamanan</option>
                                     <?php foreach ($security_questions as $q): ?>
-                                        <option value="<?php echo htmlspecialchars($q); ?>" <?php echo (isset($_POST['security_question']) && $_POST['security_question'] == $q) ? 'selected' : ''; ?>>
+                                        <option value="<?php echo htmlspecialchars($q); ?>" 
+                                            <?php echo ($form_data['security_question'] == $q) ? 'selected' : ''; ?>>
                                             <?php echo htmlspecialchars($q); ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -376,7 +482,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             <div class="input-group-custom">
                                 <i class="fas fa-paw"></i>
-                                <input type="text" name="security_answer" class="form-control" placeholder="Jawaban (huruf kecil semua)" value="<?php echo isset($_POST['security_answer']) ? htmlspecialchars($_POST['security_answer']) : ''; ?>" required>
+                                <input type="text" name="security_answer" class="form-control" 
+                                       placeholder="Jawaban (huruf kecil semua)" 
+                                       value="<?php echo htmlspecialchars($form_data['security_answer']); ?>" 
+                                       required>
                             </div>
                             
                             <button type="submit" class="btn-register">
@@ -397,6 +506,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
                 
+                <!-- Security Note -->
                 <div class="text-center mt-4">
                     <p style="color: var(--medium-brown); font-size: 0.75rem;">
                         <i class="fas fa-shield-alt me-1"></i> Data Anda aman dan terenkripsi

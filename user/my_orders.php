@@ -9,7 +9,37 @@ if (!isUser()) {
     exit();
 }
 
-// Get user's orders - FIXED: jangan JOIN ke services karena kolom order_id mungkin belum ada
+// Handle confirm order received (user confirms receipt)
+if (isset($_GET['confirm'])) {
+    $order_id = (int)$_GET['confirm'];
+    
+    // Check if order belongs to user and status is 'shipped'
+    $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ? AND user_id = ?");
+    $stmt->execute([$order_id, $_SESSION['user_id']]);
+    $order = $stmt->fetch();
+    
+    if ($order && $order['status'] == 'shipped') {
+        // Update order status to 'completed'
+        $stmt = $pdo->prepare("UPDATE orders SET status = 'completed' WHERE id = ?");
+        $stmt->execute([$order_id]);
+        
+        $confirm_message = '<div class="alert alert-success rounded-4"><i class="fas fa-check-circle me-2"></i>Pesanan berhasil dikonfirmasi! Terima kasih telah berbelanja di Loaz Industries.</div>';
+        header('Location: my_orders.php?msg=' . urlencode($confirm_message));
+        exit();
+    } else {
+        $confirm_message = '<div class="alert alert-danger rounded-4"><i class="fas fa-exclamation-circle me-2"></i>Pesanan tidak dapat dikonfirmasi.</div>';
+        header('Location: my_orders.php?msg=' . urlencode($confirm_message));
+        exit();
+    }
+}
+
+// Get message from URL
+$message_display = '';
+if (isset($_GET['msg'])) {
+    $message_display = urldecode($_GET['msg']);
+}
+
+// Get user's orders
 $stmt = $pdo->prepare("
     SELECT o.*, 
            (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) as item_count,
@@ -29,7 +59,7 @@ include '../includes/header.php';
 <div class="container py-4">
     <div class="row">
         <div class="col-12">
-            <!-- Page Header with Back Button -->
+            <!-- Page Header -->
             <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                 <div>
                     <h1 class="display-5 fw-light" style="color: var(--dark-brown);">Pesanan Saya</h1>
@@ -44,6 +74,10 @@ include '../includes/header.php';
                     </a>
                 </div>
             </div>
+            
+            <?php if ($message_display): ?>
+                <?php echo $message_display; ?>
+            <?php endif; ?>
             
             <?php if (count($orders) == 0): ?>
                 <!-- Empty Orders -->
@@ -66,25 +100,33 @@ include '../includes/header.php';
                 <!-- Orders List -->
                 <div class="row g-4">
                     <?php foreach ($orders as $order): ?>
+                        <?php 
+                        // [FIX] Status badge mapping
+                        $status_badge = [
+                            'pending' => 'warning',
+                            'paid' => 'info',
+                            'shipped' => 'primary',
+                            'completed' => 'success'
+                        ];
+                        $status_text = [
+                            'pending' => 'Menunggu Pembayaran',
+                            'paid' => 'Dibayar',
+                            'shipped' => 'Dikirim',
+                            'completed' => 'Selesai'
+                        ];
+                        $status_color = $status_badge[$order['status']] ?? 'secondary';
+                        $status_display = $status_text[$order['status']] ?? ucfirst($order['status']);
+                        
+                        // [FIX] Tentukan apakah tombol konfirmasi ditampilkan (hanya untuk status 'shipped')
+                        $show_confirm = ($order['status'] == 'shipped');
+                        ?>
                         <div class="col-md-6">
                             <div class="card border-0 shadow-sm rounded-4 h-100">
                                 <div class="card-body p-4">
                                     <div class="d-flex justify-content-between align-items-start mb-3">
                                         <div>
-                                            <span class="badge bg-<?php 
-                                                echo $order['status'] == 'pending' ? 'warning' : 
-                                                    ($order['status'] == 'paid' ? 'info' : 
-                                                    ($order['status'] == 'shipped' ? 'primary' : 'success')); 
-                                            ?> px-3 py-2 rounded-pill">
-                                                <?php 
-                                                    $status_text = [
-                                                        'pending' => 'Menunggu Pembayaran',
-                                                        'paid' => 'Dibayar',
-                                                        'shipped' => 'Dikirim',
-                                                        'completed' => 'Selesai'
-                                                    ];
-                                                    echo $status_text[$order['status']] ?? ucfirst($order['status']);
-                                                ?>
+                                            <span class="badge bg-<?php echo $status_color; ?> px-3 py-2 rounded-pill">
+                                                <?php echo $status_display; ?>
                                             </span>
                                         </div>
                                         <small class="text-muted">#<?php echo str_pad($order['id'], 6, '0', STR_PAD_LEFT); ?></small>
@@ -130,6 +172,12 @@ include '../includes/header.php';
                                             <a href="payment.php?order_id=<?php echo $order['id']; ?>" class="btn btn-gold rounded-4 flex-grow-1">
                                                 <i class="fas fa-credit-card me-2"></i> Bayar
                                             </a>
+                                        <?php elseif ($show_confirm): ?>
+                                            <!-- [FIX] Tombol Konfirmasi Pesanan Diterima -->
+                                            <a href="?confirm=<?php echo $order['id']; ?>" class="btn btn-success rounded-4 flex-grow-1" 
+                                               onclick="return confirm('Konfirmasi bahwa Anda telah menerima pesanan ini?')">
+                                                <i class="fas fa-check-double me-2"></i> Konfirmasi
+                                            </a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -171,6 +219,16 @@ include '../includes/header.php';
         background: var(--medium-brown);
         transform: translateY(-2px);
     }
+    .btn-success {
+        background: #28a745;
+        color: white;
+        border: none;
+        transition: all 0.3s ease;
+    }
+    .btn-success:hover {
+        background: #1e7e34;
+        transform: translateY(-2px);
+    }
     .btn-outline-gold {
         border: 1.5px solid var(--gold-brown);
         color: var(--gold-brown);
@@ -182,9 +240,9 @@ include '../includes/header.php';
         color: white;
     }
     .bg-warning { background: #ffc107 !important; color: #000; }
-    .bg-info { background: #17a2b8 !important; }
-    .bg-primary { background: var(--gold-brown) !important; }
-    .bg-success { background: #28a745 !important; }
+    .bg-info { background: #17a2b8 !important; color: #fff; }
+    .bg-primary { background: var(--gold-brown) !important; color: #fff; }
+    .bg-success { background: #28a745 !important; color: #fff; }
     .card {
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }

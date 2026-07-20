@@ -1,36 +1,42 @@
-# Enable Rewrite Engine
-RewriteEngine On
+# ============================================
+# .htaccess - Loaz Industries (Minimal Version)
+# ============================================
 
-# Redirect root to homepage.php
+RewriteEngine On
+DirectoryIndex homepage.php index.php
+
+# Redirect root to homepage
 RewriteRule ^$ homepage.php [L]
 
-# Force HTTPS (uncomment jika pakai HTTPS)
-# RewriteCond %{HTTPS} off
-# RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+# Block sensitive directories
+RewriteRule ^(config|includes)/ - [F,L]
 
-# Remove index.php from URL (optional)
+# PHP files router
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php?page=$1 [QSA,L]
 
-# Block access to sensitive directories
-RewriteRule ^config/ - [F,L]
-RewriteRule ^includes/ - [F,L]
-
-# Allow images only in uploads directory
-<FilesMatch "\.(jpg|jpeg|png|gif|webp|svg)$">
-    Order Allow,Deny
-    Allow from all
-</FilesMatch>
-
-# Set default page
-DirectoryIndex homepage.php index.php
-
-# Custom error pages - Gunakan path absolut dari root DOCUMENT_ROOT
+# Error pages
 ErrorDocument 404 /loaz_industries/404.php
 ErrorDocument 403 /loaz_industries/403.php
+
+# Security headers (jika mod_headers aktif)
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>
 
 # PHP settings
 php_value upload_max_filesize 10M
 php_value post_max_size 10M
 php_value max_execution_time 300
+php_value memory_limit 256M
+php_value date.timezone Asia/Jakarta
+
+# Prevent directory listing
+Options -Indexes
+
+# ============================================
+# END OF .htaccess
+# ============================================
